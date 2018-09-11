@@ -1,3 +1,3 @@
-class OwnedIngredients < ActiveRecord::Base
+class OwnedIngredient < ActiveRecord::Base
     
 end
