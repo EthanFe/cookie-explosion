@@ -58,9 +58,15 @@ class Owner < ActiveRecord::Base
         #else returns none
     end
         
-    #list_what_you_need_to_bake(cookie_type)
+    #list_what_you_need_to_bake(cookie_type) and return hash of ingredient.id => count
     def list_what_you_need_to_bake(cookie_type)
-        #get recipe ingredients for cookie_t
+        #get recipe ingredients for cookie_type
+        ingredient_count_hash = {}
+        cookie_type.recipe_ingredients.each do |recipe_ingredient|
+            ingredient_count_hash[recipe_ingredient.ingredient_id] = recipe_ingredient.count
+        end
+
+        ingredient_count_hash
     end
     
     #bake_cookies(cookie_type)
@@ -85,7 +91,6 @@ class Owner < ActiveRecord::Base
     #receive giveable cookie
     def receive_giveable_cookie(cookie_type)
         owned_cookie = self.owned_cookies.find_or_create_by(cookie_recipe_id: cookie_type.id)
-
         if owned_cookie.received_count == nil && owned_cookie.giveable_count == nil#if just created
             owned_cookie.update(received_count: 0, giveable_count: 0)
         end
@@ -108,4 +113,22 @@ class Owner < ActiveRecord::Base
         has_enough_ingredients
     end
     
+    #list all giveable ingredients owner has and return hash of ingredient.id => count
+    def list_all_giveable_ingredients
+        ingredient_count_hash = {}
+        self.owned_ingredients.each do |owned_ingredient|
+            ingredient_count_hash[owned_ingredient.ingredient_id] = owned_ingredient.giveable_count
+        end
+        ingredient_count_hash
+    end
+
+    #list all received ingredients owner has and return hash of ingredient_id => count
+    def list_all_received_ingredients
+        ingredient_count_hash = {}
+        self.owned_ingredients.each do |owned_ingredient|
+            ingredient_count_hash[owned_ingredient.ingredient_id] = owned_ingredient.received_count
+        end
+        ingredient_count_hash
+    end
+
 end
