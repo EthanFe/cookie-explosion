@@ -1,23 +1,16 @@
-require 'sinatra/base'
-require 'slack-ruby-client'
-require 'rest-client'
-require "json"
-require "pry"
-
 class SlackBot
   @@token = "xoxa-2-431241021636-431454794578-431243756420-5e277d6052f2e25e25d7b59c9bbcf9d4"
-  @@users = []
+
   def self.startup
     self.add_all_users
   end
 
   def self.add_all_users
-    request_url = "https://slack.com/api/users.list?token=#{@@token}&pretty=1"
-    response = JSON.parse(RestClient.get(request_url))
-    if response["ok"]
-      response["members"].each do |member|
-        existing_member = @@users.find {|user| user["id"] == member["id"]}
-        if member["id"] != "USLACKBOT" && !member["profile"]["bot_id"] && !existing_member
+    users = self.get_user_list
+    if users
+      users.each do |member|
+        existing_member = Owner.find_by slack_id: member["id"]
+        if !self.user_is_a_bot(member) && !existing_member
           self.add_user(member)
         end
       end
@@ -25,8 +18,18 @@ class SlackBot
     # binding.pry
   end
 
+  def self.get_user_list
+    request_url = "https://slack.com/api/users.list?token=#{@@token}&pretty=1"
+    response = JSON.parse(RestClient.get(request_url))
+    response["ok"] ? response["members"] : false
+  end
+
+  def self.user_is_a_bot(member)
+    member["id"] == "USLACKBOT" || member["profile"]["bot_id"]
+  end
+
   def self.add_user(member)
-    @@users << member
+    Owner.create(slack_id: member["id"])
   end
 end
 
@@ -35,55 +38,55 @@ class SlackAPI < Sinatra::Base
   # This is the endpoint Slack will post Event data to.
   post '/events' do
     puts "received event!"
-    # Extract the Event payload from the request and parse the JSON
-    request_data = JSON.parse(request.body.read)
-    puts request_data
-    # Check the verification token provided with the request to make sure it matches the verification token in
-    # your app's setting to confirm that the request came from Slack.
-    unless SLACK_CONFIG[:slack_verification_token] == request_data['token']
-      halt 403, "Invalid Slack verification token received: #{request_data['token']}"
-    end
+    if request.content_type == "application/x-www-form-urlencoded"
+      puts "URL ENCODED DATA"
+      request_data = Events.parse_url_encoded_data(request.body.read)
+      user_id = request_data["user_id"]
+      case request_data["command"]
+      when "%2Fingredients"
+        return "Current ingredients: :cookie: :cookie:"
+      end
 
-    case request_data['type']
-  #     # When you enter your Events webhook URL into your app's Event Subscription settings, Slack verifies the
-  #     # URL's authenticity by sending a challenge token to your endpoint, expecting your app to echo it back.
-  #     # More info: https://api.slack.com/events/url_verification
-      when 'url_verification'
-        request_data['challenge']
+      status 200
+    elsif request.content_type == "application/json"
+      # Extract the Event payload from the request and parse the JSON
+      request_data = JSON.parse(request.body.read)
+      puts "JSON DATA"
+      puts request_data
+      # Check the verification token provided with the request to make sure it matches the verification token in
+      # your app's setting to confirm that the request came from Slack.
+      unless SLACK_CONFIG[:slack_verification_token] == request_data['token']
+        halt 403, "Invalid Slack verification token received: #{request_data['token']}"
+      end
 
-      when 'event_callback'
-        # Get the Team ID and Event data from the request object
-        team_id = request_data['team_id']
-        event_data = request_data['event']
+      case request_data['type']
+        # When you enter your Events webhook URL into your app's Event Subscription settings, Slack verifies the
+        # URL's authenticity by sending a challenge token to your endpoint, expecting your app to echo it back.
+        # More info: https://api.slack.com/events/url_verification
+        when 'url_verification'
+          request_data['challenge']
 
-        # Events have a "type" attribute included in their payload, allowing you to handle different
-        # Event payloads as needed.
-        case event_data['type']
-        when 'message'
-          user_id = event_data["user"]
-          text = event_data["text"]
-          channel_id = event_data["channel"]
-          # Events.send_echo_to_user(user_id, text)
-          Events.send_message(channel_id, text) unless event_data["bot_id"] == "BCQPJU5ML"
-  #         when 'team_join'
-  #           # Event handler for when a user joins a team
-  #           Events.user_join(team_id, event_data)
-  #         when 'reaction_added'
-  #           # Event handler for when a user reacts to a message or item
-  #           Events.reaction_added(team_id, event_data)
-  #         when 'pin_added'
-  #           # Event handler for when a user pins a message
-  #           Events.pin_added(team_id, event_data)
-  #         when 'message'
-  #           # Event handler for messages, including Share Message actions
-  #           Events.message(team_id, event_data)
-  #         else
-  #           # In the event we receive an event we didn't expect, we'll log it and move on.
-  #           puts "Unexpected event:\n"
-  #           puts JSON.pretty_generate(request_data)
-        end
-        # Return HTTP status code 200 so Slack knows we've received the Event
-        status 200
+        when 'event_callback'
+          # Get the Team ID and Event data from the request object
+          team_id = request_data['team_id']
+          event_data = request_data['event']
+
+          # Events have a "type" attribute included in their payload, allowing you to handle different
+          # Event payloads as needed.
+          case event_data['type']
+          when 'message'
+            user_id = event_data["user"]
+            text = event_data["text"]
+            channel_id = event_data["channel"]
+            # Events.send_echo_to_user(user_id, text)
+            # Events.send_message(channel_id, text) unless event_data["bot_id"] == "BCQPJU5ML"
+            when 'team_join'
+              # Event handler for when a user joins a team
+              Events.user_join(team_id, event_data)
+          end
+          # Return HTTP status code 200 so Slack knows we've received the Event
+          status 200
+      end
     end
   end
 end
@@ -96,12 +99,7 @@ class Events
   # A new user joins the team
   def self.user_join(team_id, event_data)
     user_id = event_data['user']['id']
-    # Store a copy of the tutorial_content object specific to this user, so we can edit it
-    $teams[team_id][user_id] = {
-      tutorial_content: SlackTutorial.new
-    }
-    # Send the user our welcome message, with the tutorial JSON attached
-    self.send_response(team_id, user_id)
+    binding.pry
   end
 
   # A user reacts to a message
@@ -193,6 +191,18 @@ class Events
 
   def self.send_message_to_user(user_id, text)
     send_message(user_id, text)
+  end
+
+  def self.send_ephemeral_message_to_user(user_id, text)
+  end
+
+  def self.parse_url_encoded_data(string)
+    properties = string.split("&")
+    # some slightly arcane code stolen from stackoverflow
+    # turns an array of strings of the form "key=value" into a hash
+    Hash[properties.map do |property|
+      property.split("=") 
+    end]
   end
 end
 
