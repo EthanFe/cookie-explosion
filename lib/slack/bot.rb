@@ -40,7 +40,7 @@ class SlackAPI < Sinatra::Base
       user_id = request_data["user_id"]
       case request_data["command"]
       when "%2Fingredients"
-        return "Current ingredients: :cookie: :cookie:"
+        return Commands.list_ingredients
       end
 
       status 200
@@ -199,6 +199,12 @@ class Events
     Hash[properties.map do |property|
       property.split("=") 
     end]
+  end
+end
+
+class Commands
+  def self.list_ingredients
+    "Current ingredients: :cookie: :cookie:"
   end
 end
 
