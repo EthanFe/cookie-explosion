@@ -22,7 +22,7 @@ class SlackBot
         end
       end
     end
-    binding.pry
+    # binding.pry
   end
 
   def self.add_user(member)
