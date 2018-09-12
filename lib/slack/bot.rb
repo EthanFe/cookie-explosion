@@ -9,13 +9,9 @@ class SlackBot
     users = self.get_user_list
     if users
       users.each do |member|
-        existing_member = Owner.find_by slack_id: member["id"]
-        if !self.user_is_a_bot(member) && !existing_member
-          self.add_user(member)
-        end
+        self.add_user_if_new(member) unless self.user_is_a_bot(member)
       end
     end
-    # binding.pry
   end
 
   def self.get_user_list
@@ -28,8 +24,8 @@ class SlackBot
     member["id"] == "USLACKBOT" || member["profile"]["bot_id"]
   end
 
-  def self.add_user(member)
-    Owner.create(slack_id: member["id"])
+  def self.add_user_if_new(member)
+    Owner.find_or_create_by(slack_id: member["id"])
   end
 end
 
