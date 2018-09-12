@@ -1,8 +1,32 @@
 class SlackBot
+  #these are both pretty dumbo but w/e
   @@token = "xoxa-2-431241021636-431454794578-431243756420-5e277d6052f2e25e25d7b59c9bbcf9d4"
+  @@starting_ingredients = {Ingredient.find_by(name: "Butter") => 1,
+                            Ingredient.find_by(name: "Sugar") => 1,
+                            Ingredient.find_by(name: "Egg") => 1,
+                            Ingredient.find_by(name: "Flour") => 1,
+                            Ingredient.find_by(name: "Chocolate") => 1,
+                            Ingredient.find_by(name: "Peanut Butter") => 1
+                          }
 
   def self.startup
     self.add_all_users
+    self.give_starting_ingredients_to_all_users
+  end
+
+  def self.give_starting_ingredients_to_all_users
+    Owner.all.each do |member|
+      self.give_starting_ingredients(member)
+    end
+  end
+
+  def self.give_starting_ingredients(member)
+    @@starting_ingredients.each do |ingredient, count|
+      # if owner.receive_giveable_ingredient had a count argument this could be simplified
+      count.times do 
+        member.receive_giveable_ingredient(ingredient)
+      end
+    end
   end
 
   def self.add_all_users
