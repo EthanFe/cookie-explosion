@@ -69,6 +69,11 @@ class Owner < ActiveRecord::Base
         ingredient_count_hash
     end
     
+    def list_additional_ingredients_needed_to_bake(cookie_type)
+            
+        
+    end 
+
     #bake_cookies(cookie_type)
     def bake_cookies(cookie_type)
         #check can_bake?(cookie_type)
@@ -81,9 +86,6 @@ class Owner < ActiveRecord::Base
                 #decrement received ingredient count from self
                 self_owned_ingredient.update(received_count: self_owned_ingredient.received_count - decrement_count)
             end
-
-            #receive giveable cookie
-            receive_giveable_cookie(cookie_type)
 
         end
     end
@@ -131,4 +133,21 @@ class Owner < ActiveRecord::Base
         ingredient_count_hash
     end
 
+    #list all giveable cookies owner has and return hash of ingredient.id => count
+    def list_all_giveable_cookies
+        cookie_count_hash = {}
+        self.owned_cookies.each do |owned_cookie|
+            cookie_count_hash[owned_cookie.cookie_recipe_id] = owned_cookie.giveable_count
+        end
+        cookie_count_hash
+    end
+
+    #list all received cookies owner has and return hash of ingredient_id => count
+    def list_all_received_cookies
+        cookie_count_hash = {}
+        self.owned_cookies.each do |owned_cookie|
+            cookie_count_hash[owned_cookie.cookie_recipe_id] = owned_cookie.received_count
+        end
+        cookie_count_hash
+    end
 end
