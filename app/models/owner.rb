@@ -33,9 +33,6 @@ class Owner < ActiveRecord::Base
             receiver.receive_ingredient_from(self, ingredient)
         end
 
-        #call receive_ingredient_from(self)
-        receiver.receive_ingredient_from(self, ingredient)
-
     end
 
     #receive_ingredient_from(giver)
@@ -87,6 +84,9 @@ class Owner < ActiveRecord::Base
                 self_owned_ingredient.update(received_count: self_owned_ingredient.received_count - decrement_count)
             end
 
+            #receive giveable cookie	
+            receive_giveable_cookie(cookie_type)
+            
         end
     end
 
