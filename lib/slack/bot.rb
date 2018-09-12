@@ -51,6 +51,12 @@ class SlackBot
   def self.add_user_if_new(member)
     Owner.find_or_create_by(slack_id: member["id"])
   end
+
+  def self.get_name_of_user(user)
+    request_url = "https://slack.com/api/users.info?token=#{@@token}&user=#{user.slack_id}&pretty=1"
+    response = JSON.parse(RestClient.get(request_url))
+    response["user"]["real_name"]
+  end
 end
 
 # This class contains all of the webserver logic for processing incoming requests from Slack.
@@ -64,7 +70,7 @@ class SlackAPI < Sinatra::Base
       user_id = request_data["user_id"]
       case request_data["command"]
       when "%2Fingredients"
-        return Commands.list_ingredients
+        return Commands.list_ingredients(user_id)
       end
 
       status 200
@@ -72,7 +78,7 @@ class SlackAPI < Sinatra::Base
       # Extract the Event payload from the request and parse the JSON
       request_data = JSON.parse(request.body.read)
       puts "JSON DATA"
-      puts request_data
+      # puts request_data
       # Check the verification token provided with the request to make sure it matches the verification token in
       # your app's setting to confirm that the request came from Slack.
       unless SLACK_CONFIG[:slack_verification_token] == request_data['token']
@@ -98,11 +104,25 @@ class SlackAPI < Sinatra::Base
             user_id = event_data["user"]
             text = event_data["text"]
             channel_id = event_data["channel"]
+            puts "message text: #{text}"
+            if text
+              if text[0..1] == "<@"
+                targeted_slack_id = text[2..10]
+                sending_user = Owner.find_by(slack_id: user_id)
+                targeted_user = Owner.find_by(slack_id: targeted_slack_id)
+                if targeted_user
+                  if text.include?(":flour:")
+                    sending_user.give_ingredient_to(targeted_user, Ingredient.find_by(emoji: "flour"))
+                    Events.send_message(channel_id, "#{SlackBot.get_name_of_user(sending_user)} gave a :flour: to #{SlackBot.get_name_of_user(targeted_user)}!")
+                  end
+                end
+              end
+            end
             # Events.send_echo_to_user(user_id, text)
             # Events.send_message(channel_id, text) unless event_data["bot_id"] == "BCQPJU5ML"
-            when 'team_join'
-              # Event handler for when a user joins a team
-              Events.user_join(team_id, event_data)
+          when 'team_join'
+            # Event handler for when a user joins a team
+            Events.user_join(team_id, event_data)
           end
           # Return HTTP status code 200 so Slack knows we've received the Event
           status 200
@@ -227,8 +247,8 @@ class Events
 end
 
 class Commands
-  def self.list_ingredients
-    "Current ingredients: :cookie: :cookie:"
+  def self.list_ingredients(user_id)
+    Owner.find_by(slack_id: user_id)
   end
 end
 
