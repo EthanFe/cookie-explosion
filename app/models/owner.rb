@@ -131,4 +131,12 @@ class Owner < ActiveRecord::Base
         ingredient_count_hash
     end
 
+    def list_all_ingredients
+        ingredient_counts = []
+        self.owned_ingredients.each do |owned_ingredient|
+            ingredient_counts << {id: owned_ingredient.ingredient_id, giveable: owned_ingredient.giveable_count, received: owned_ingredient.received_count}
+        end
+        ingredient_counts
+    end
+
 end
