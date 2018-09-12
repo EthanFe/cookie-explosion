@@ -13,3 +13,7 @@ gem "rake", "~> 12.3"
 gem "rest-client", "~> 2.0"
 
 gem "json", "~> 2.1"
+
+gem "sinatra", "~> 2.0"
+
+gem "slack-ruby-client", "~> 0.13.0"
