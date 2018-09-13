@@ -57,9 +57,10 @@ class SlackBot
     @@sendable_ingredient_emoji
   end
 
-  def self.send_ingredient()
+  def self.send_ingredient(sending_user, targeted_user, sendable_ingredient)
     sending_user.give_ingredient_to(targeted_user, Ingredient.find_by(emoji: sendable_ingredient))
-    Events.send_message(channel_id, "#{SlackBot.get_name_of_user(sending_user)} gave a :#{sendable_ingredient}: to #{SlackBot.get_name_of_user(targeted_user)}!")
+    Events.send_message(sending_user.slack_id, "You gave a :#{sendable_ingredient}: to #{SlackBot.get_name_of_user(targeted_user)}!")
+    Events.send_message(targeted_user.slack_id, "#{SlackBot.get_name_of_user(sending_user)}: gave you a :#{sendable_ingredient}:!")
   end
 end
 
@@ -164,7 +165,7 @@ class Events
         if targeted_user
           SlackBot.sendable_ingredient_emoji.each do |sendable_ingredient|
             if text.include?(":#{sendable_ingredient}:")
-              SlackBot.send_ingredient(channel_id, sending_user, targeted_user, sendable_ingredient)
+              SlackBot.send_ingredient(sending_user, targeted_user, sendable_ingredient)
             end
           end
         end
