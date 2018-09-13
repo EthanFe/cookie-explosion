@@ -215,13 +215,24 @@ class Commands
   def self.list_bakeable_cookies(user_id)
     response =
     {
-      :text => "Cookies you can make:",
+      :text => "",
       :attachments => []
     }
 
-    recipes = Owner.find_by(slack_id: user_id).list_cookie_recipes_you_can_bake
-    recipes.each do |recipe|
-      response[:attachments] << {"text" => "#{recipe.name} cookies!"}
+    user = Owner.find_by(slack_id: user_id)
+    recipes = user.list_cookie_recipes_you_can_bake
+    if recipes.length > 0
+      response[:text] << "Cookies you can make:"
+      recipes.each do |recipe|
+        response[:attachments] << {"text" => "#{recipe.name} cookies!"}
+      end
+    else
+      closest_cookie = user.list_closest_cookable_cookie
+      response[:text] << "You don't have enough ingredients to make a cookie yet. The cookie you're closest to is a :#{closest_cookie.emoji}:, which needs:\n"
+
+      user.remaining_needed_ingredients_for(closest_cookie).each do |ingredient_id, count|
+        response[:attachments] << {"text" => ":#{Ingredient.find(ingredient_id).emoji}:" * count}
+      end
     end
 
     response.to_json
