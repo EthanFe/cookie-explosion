@@ -163,15 +163,19 @@ class Events
         sending_user = Owner.find_by(slack_id: user_id)
         targeted_user = Owner.find_by(slack_id: targeted_slack_id)
         if targeted_user
-          SlackBot.sendable_ingredient_emoji.each do |sendable_ingredient|
-            if text.include?(":#{sendable_ingredient}:")
-              SlackBot.send_ingredient(sending_user, targeted_user, sendable_ingredient)
+          if targeted_user != sending_user
+            SlackBot.sendable_ingredient_emoji.each do |sendable_ingredient|
+              if text.include?(":#{sendable_ingredient}:")
+                SlackBot.send_ingredient(sending_user, targeted_user, sendable_ingredient)
+              end
             end
-          end
-          SlackBot.sendable_cookie_emoji.each do |sendable_cookie|
-            if text.include?(":#{sendable_cookie}:")
-              SlackBot.send_cookie(sending_user, targeted_user, sendable_cookie)
+            SlackBot.sendable_cookie_emoji.each do |sendable_cookie|
+              if text.include?(":#{sendable_cookie}:")
+                SlackBot.send_cookie(sending_user, targeted_user, sendable_cookie)
+              end
             end
+          else
+            Events.send_message(sending_user.slack_id, "You can't send ingredients to yourself!")
           end
         end
       end
