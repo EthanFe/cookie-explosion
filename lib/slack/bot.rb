@@ -77,9 +77,9 @@ class SlackAPI < Sinatra::Base
       user_id = request_data["user_id"]
       text = request_data["text"]
       case request_data["command"]
-      when "%2Fingredients"
+      when "%2Fcookie-inventory"
         content_type :json
-        return Commands.list_ingredients(user_id)
+        return Commands.cookie_inventory(user_id)
       when "%2Flist-bakeable-cookies"
         content_type :json
         return Commands.list_bakeable_cookies(user_id)
@@ -183,18 +183,33 @@ class Events
 end
 
 class Commands
-  def self.list_ingredients(user_id)
-    ingredients = Owner.find_by(slack_id: user_id).list_all_ingredients
+  def self.cookie_inventory(user_id)
+    #this function is so giant and ugly and inconsistent aaaaah
+    owner = Owner.find_by(slack_id: user_id)
+    ingredients = owner.list_all_ingredients
+    giveable_cookies = owner.list_all_giveable_cookies
+    received_cookies = owner.list_all_received_cookies
 
     response =
     {
-      :text => "Your Ingredients:\n",
+      :text => "Your Ingredients:\n\n",
       :attachments => []
     }
 
     ingredients.each do |ingredient_info|
       ingredient = Ingredient.find(ingredient_info[:id])
       response[:text] << "You have #{ingredient_info[:giveable]} giveable #{ingredient.name} :#{ingredient.emoji}:, and #{ingredient_info[:received]} received from others!\n"
+    end
+
+    response[:text] << "\nCookies you've baked:\n"
+    giveable_cookies.each do |cookie_id, count|
+      cookie = OwnedCookie.find(cookie_id)
+      response[:text] << (":#{cookie.cookie_recipe.emoji}:" * count) + "\n"
+    end
+    response[:text] << "\nCookies others have sent to you:\n"
+    received_cookies.each do |cookie_id, count|
+      cookie = OwnedCookie.find(cookie_id)
+      response[:text] << (":#{cookie.cookie_recipe.emoji}:" * count) + "\n"
     end
 
     response.to_json
