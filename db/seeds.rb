@@ -6,7 +6,7 @@ egg = Ingredient.create(name: "Egg", emoji: "egg")
 flour = Ingredient.create(name: "Flour", emoji: "flour")
 
 chocolate = Ingredient.create(name: "Chocolate", emoji: "chocolate_bar")
-peanut_butter = Ingredient.create(name: "Peanut Butter", emoji: "peanuts")
+peanut_butter = Ingredient.create(name: "Peanutbutter", emoji: "peanuts")
 
 
 # RECIPES

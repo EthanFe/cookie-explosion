@@ -6,11 +6,10 @@ class SlackBot
                             Ingredient.find_by(name: "Egg") => 1,
                             Ingredient.find_by(name: "Flour") => 1,
                             Ingredient.find_by(name: "Chocolate") => 1,
-                            Ingredient.find_by(name: "Peanut Butter") => 1
+                            Ingredient.find_by(name: "Peanutbutter") => 1
                           }
-  @@sendable_ingredient_emoji = Ingredient.all.map do |ingredient|
-    ingredient.emoji
-  end
+  @@sendable_ingredient_emoji = Ingredient.all.map { |ingredient| ingredient.emoji }
+  @@sendable_cookie_emoji = CookieRecipe.all.map { |cookie| cookie.emoji }
 
   def self.startup
     self.add_all_users
@@ -57,10 +56,23 @@ class SlackBot
     @@sendable_ingredient_emoji
   end
 
-  def self.send_ingredient(sending_user, targeted_user, sendable_ingredient)
-    sending_user.give_ingredient_to(targeted_user, Ingredient.find_by(emoji: sendable_ingredient))
-    Events.send_message(sending_user.slack_id, "You gave a :#{sendable_ingredient}: to #{SlackBot.get_name_of_user(targeted_user)}!")
-    Events.send_message(targeted_user.slack_id, "#{SlackBot.get_name_of_user(sending_user)}: gave you a :#{sendable_ingredient}:!")
+  def self.sendable_cookie_emoji
+    @@sendable_cookie_emoji
+  end
+
+  def self.send_sent_item_messages(sender, recipient, object)
+    Events.send_message(sender.slack_id, "You gave a :#{object}: to #{SlackBot.get_name_of_user(recipient)}!")
+    Events.send_message(recipient.slack_id, "#{SlackBot.get_name_of_user(sender)}: gave you a :#{object}:!")
+  end
+
+  def self.send_ingredient(sender, recipient, item)
+    self.send_sent_item_messages(sender, recipient, item)
+    sender.give_ingredient_to(recipient, Ingredient.find_by(emoji: item))
+  end
+
+  def self.send_cookie(sender, recipient, item)
+    self.send_sent_item_messages(sender, recipient, item)
+    sender.give_cookie_to(recipient, CookieRecipe.find_by(emoji: item))
   end
 end
 
@@ -156,12 +168,18 @@ class Events
               SlackBot.send_ingredient(sending_user, targeted_user, sendable_ingredient)
             end
           end
+          SlackBot.sendable_cookie_emoji.each do |sendable_cookie|
+            if text.include?(":#{sendable_cookie}:")
+              SlackBot.send_cookie(sending_user, targeted_user, sendable_cookie)
+            end
+          end
         end
       end
     end
   end
 
   def self.slash_command_received(request_data)
+    channel_id = request_data["channel_id"]
     user_id = request_data["user_id"]
     text = request_data["text"]
     case request_data["command"]
@@ -173,7 +191,7 @@ class Events
       return Commands.bake_cookies(user_id, text)
     when "%2F%21distribute-ingredients"
       if user_id == "UCRK08DGA" || user_id == "UCNMEMR08"
-        return Commands.distribute_ingredients(text)
+        return Commands.distribute_ingredients(channel_id, text)
       end
     end
   end
@@ -264,12 +282,13 @@ class Commands
     end
   end
 
-  def self.distribute_ingredients(text)
+  def self.distribute_ingredients(channel_id, text)
     ingredient_type, count = text.split("+")
     ingredient = Ingredient.find do |ingredient|
       ingredient.name.downcase == ingredient_type.downcase
     end
     SlackBot.give_ingredients_to_all_users(ingredient, count.to_i)
+    Events.send_message(channel_id, "Everyone has received #{count} more :#{ingredient.emoji}: to send to others!")
     "(ADMIN) Sent all users #{count} #{ingredient.name}"
   end
 end
