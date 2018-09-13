@@ -14,18 +14,10 @@ class SlackBot
 
   def self.startup
     self.add_all_users
-    self.give_starting_ingredients_to_all_users
   end
 
-  def self.give_starting_ingredients_to_all_users
+  def self.give_ingredients_to_all_users(ingredient, count)
     Owner.all.each do |member|
-      self.give_starting_ingredients(member)
-    end
-  end
-
-  def self.give_starting_ingredients(member)
-    @@starting_ingredients.each do |ingredient, count|
-      # if owner.receive_giveable_ingredient had a count argument this could be simplified
       count.times do 
         member.receive_giveable_ingredient(ingredient)
       end
@@ -64,6 +56,11 @@ class SlackBot
   def self.sendable_ingredient_emoji
     @@sendable_ingredient_emoji
   end
+
+  def self.send_ingredient()
+    sending_user.give_ingredient_to(targeted_user, Ingredient.find_by(emoji: sendable_ingredient))
+    Events.send_message(channel_id, "#{SlackBot.get_name_of_user(sending_user)} gave a :#{sendable_ingredient}: to #{SlackBot.get_name_of_user(targeted_user)}!")
+  end
 end
 
 # This class contains all of the webserver logic for processing incoming requests from Slack.
@@ -74,20 +71,13 @@ class SlackAPI < Sinatra::Base
     if request.content_type == "application/x-www-form-urlencoded"
       puts "URL ENCODED DATA"
       request_data = Events.parse_url_encoded_data(request.body.read)
-      user_id = request_data["user_id"]
-      text = request_data["text"]
-      case request_data["command"]
-      when "%2Fcookie-inventory"
-        content_type :json
-        return Commands.cookie_inventory(user_id)
-      when "%2Flist-bakeable-cookies"
-        content_type :json
-        return Commands.list_bakeable_cookies(user_id)
-      when "%2Fbake_cookies"
-        return Commands.bake_cookies(user_id, text)
+      content_type :json
+      response = Events.slash_command_received(request_data)
+      if response
+        return response
+      else
+        status 200
       end
-
-      status 200
     elsif request.content_type == "application/json"
       # Extract the Event payload from the request and parse the JSON
       request_data = JSON.parse(request.body.read)
@@ -115,27 +105,7 @@ class SlackAPI < Sinatra::Base
           # Event payloads as needed.
           case event_data['type']
           when 'message'
-            user_id = event_data["user"]
-            text = event_data["text"]
-            channel_id = event_data["channel"]
-            puts "message text: #{text}"
-            if text
-              if text[0..1] == "<@"
-                targeted_slack_id = text[2..10]
-                sending_user = Owner.find_by(slack_id: user_id)
-                targeted_user = Owner.find_by(slack_id: targeted_slack_id)
-                if targeted_user
-                  SlackBot.sendable_ingredient_emoji.each do |sendable_ingredient|
-                    if text.include?(":#{sendable_ingredient}:")
-                      sending_user.give_ingredient_to(targeted_user, Ingredient.find_by(emoji: sendable_ingredient))
-                      Events.send_message(channel_id, "#{SlackBot.get_name_of_user(sending_user)} gave a :#{sendable_ingredient}: to #{SlackBot.get_name_of_user(targeted_user)}!")
-                    end
-                  end
-                end
-              end
-            end
-            # Events.send_echo_to_user(user_id, text)
-            # Events.send_message(channel_id, text) unless event_data["bot_id"] == "BCQPJU5ML"
+            Events.message_sent(event_data)
           when 'team_join'
             # Event handler for when a user joins a team
             Events.user_join(team_id, event_data)
@@ -179,6 +149,44 @@ class Events
     Hash[properties.map do |property|
       property.split("=") 
     end]
+  end
+
+  def self.message_sent(event_data)
+    user_id = event_data["user"]
+    text = event_data["text"]
+    channel_id = event_data["channel"]
+    puts "message text: #{text}"
+    if text
+      if text[0..1] == "<@"
+        targeted_slack_id = text[2..10]
+        sending_user = Owner.find_by(slack_id: user_id)
+        targeted_user = Owner.find_by(slack_id: targeted_slack_id)
+        if targeted_user
+          SlackBot.sendable_ingredient_emoji.each do |sendable_ingredient|
+            if text.include?(":#{sendable_ingredient}:")
+              SlackBot.send_ingredient(channel_id, sending_user, targeted_user, sendable_ingredient)
+            end
+          end
+        end
+      end
+    end
+  end
+
+  def self.slash_command_received(request_data)
+    user_id = request_data["user_id"]
+    text = request_data["text"]
+    case request_data["command"]
+    when "%2Fcookie-inventory"
+      return Commands.cookie_inventory(user_id)
+    when "%2Flist-bakeable-cookies"
+      return Commands.list_bakeable_cookies(user_id)
+    when "%2Fbake-cookies"
+      return Commands.bake_cookies(user_id, text)
+    when "%2F%21distribute-ingredients"
+      if user_id == "UCRK08DGA" || user_id == "UCNMEMR08"
+        return Commands.distribute_ingredients(text)
+      end
+    end
   end
 end
 
@@ -242,14 +250,23 @@ class Commands
           "Baked a #{recipe.name} Cookie! :#{recipe.emoji}: :tada:"
         else
           #change this to say/display what ingredients are still needed
-          "You don't have enough ingredients to make a #{recipe.name} Cookie. Use `/list_bakeable_cookies` to see available types."
+          "You don't have enough ingredients to make a #{recipe.name} Cookie. Use `/list-bakeable-cookies` to see available types."
         end
       else
-        "\"#{cookie_type}\" is not a recognized cookie type. Use `/list_bakeable_cookies` to see available types."
+        "\"#{cookie_type}\" is not a recognized cookie type. Use `/list-bakeable-cookies` to see available types."
       end
     else
-      "Enter a cookie type after `/bake_cookies` to make cookies. Use `/list_bakeable_cookies` to see available types."
+      "Enter a cookie type after `/bake-cookies` to make cookies. Use `/list-bakeable-cookies` to see available types."
     end
+  end
+
+  def self.distribute_ingredients(text)
+    ingredient_type, count = text.split("+")
+    ingredient = Ingredient.find do |ingredient|
+      ingredient.name.downcase == ingredient_type.downcase
+    end
+    SlackBot.give_ingredients_to_all_users(ingredient, count.to_i)
+    "(ADMIN) Sent all users #{count} #{ingredient.name}"
   end
 end
 
