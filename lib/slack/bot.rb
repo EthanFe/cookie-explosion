@@ -185,9 +185,9 @@ class Events
     case request_data["command"]
     when "%2Fcookie-inventory"
       return Commands.cookie_inventory(user_id)
-    when "%2Flist-bakeable-cookies"
+    when "%2Fcookies-bakeable-list"
       return Commands.list_bakeable_cookies(user_id)
-    when "%2Fbake-cookies"
+    when "%2Fcookies-bake"
       return Commands.bake_cookies(user_id, text)
     when "%2F%21distribute-ingredients"
       if user_id == "UCRK08DGA" || user_id == "UCNMEMR08"
@@ -275,10 +275,10 @@ class Commands
           response
         end
       else
-        "\"#{cookie_type}\" is not a recognized cookie type. Use `/list-bakeable-cookies` to see available types."
+        "\"#{cookie_type}\" is not a recognized cookie type. Use `/cookies-bakeable-list` to see available types."
       end
     else
-      "Enter a cookie type after `/bake-cookies` to make cookies. Use `/list-bakeable-cookies` to see available types."
+      "Enter a cookie type after `/cookies-bake` to make cookies. Use `/cookies-bakeable-list` to see available types."
     end
   end
 
