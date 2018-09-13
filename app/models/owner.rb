@@ -1,10 +1,5 @@
 class Owner < ActiveRecord::Base
 
-    # .find
-    # .find_by
-    # .where
-    # .all
-    # .update
     has_many :owned_ingredients
     has_many :owned_cookies
 
@@ -55,21 +50,30 @@ class Owner < ActiveRecord::Base
         #else returns none
     end
         
-    #list_what_you_need_to_bake(cookie_type) and return hash of ingredient.id => count
-    def list_what_you_need_to_bake(cookie_type)
-        #get recipe ingredients for cookie_type
-        ingredient_count_hash = {}
-        cookie_type.recipe_ingredients.each do |recipe_ingredient|
-            ingredient_count_hash[recipe_ingredient.ingredient_id] = recipe_ingredient.count
+    # remaining_needed_ingredients_for(cookie_type) and return hash of ingredient.id => count
+    def remaining_needed_ingredients_for(cookie_type)
+        # cookie_type.list_what_you_need_to_bake #get recipe ingredients for cookie_type
+        # self.list_all_received_ingredients #get owned recipe ingredients owned by self 
+        additional_ingredient_hash = {}
+        cookie_type.list_what_you_need_to_bake.collect do |ingredient_id, count|
+            if self.list_all_received_ingredients.has_key?(ingredient_id)
+                if count >= self.list_all_received_ingredients[ingredient_id]
+                    additional_ingredient_hash[ingredient_id] = count - self.list_all_received_ingredients[ingredient_id]
+                end
+            end
+        end
+        additional_ingredient_hash
+    end
+
+    #list cookie you are closest to making
+    def list_closest_cookable_cookie
+        total_needed_ingredients = {}
+        CookieRecipe.all.eachirb do |cookie_recipe|
+            total_needed_ingredients[cookie_recipe] = self.remaining_needed_ingredients_for(cookie_recipe).values.reduce(:+)
         end
 
-        ingredient_count_hash
+        total_needed_ingredients.key(total_needed_ingredients.values.max)
     end
-    
-    def list_additional_ingredients_needed_to_bake(cookie_type)
-            
-        
-    end 
 
     #bake_cookies(cookie_type)
     def bake_cookies(cookie_type)
