@@ -246,7 +246,7 @@ class Commands
     if recipes.length > 0
       response[:text] << "Cookies you can make:"
       recipes.each do |recipe|
-        response[:attachments] << {"text" => "#{recipe.name} cookies!"}
+        response[:attachments] << {"text" => ":#{recipe.emoji}:"}
       end
     else
       closest_cookie = user.list_closest_cookable_cookie
@@ -260,12 +260,10 @@ class Commands
     response.to_json
   end
 
-  def self.bake_cookies(user_id, cookie_type)
-    if cookie_type
-      cookie_type = cookie_type.gsub("+", " ")
-      recipe = CookieRecipe.find do |cookie_recipe|
-        cookie_type.downcase == cookie_recipe.name.downcase
-      end
+  def self.bake_cookies(user_id, cookie_emoji)
+    if cookie_emoji
+      cookie_emoji = cookie_emoji.gsub("%3A", "")
+      recipe = CookieRecipe.find_by(emoji: cookie_emoji)
       if recipe
         user = Owner.find_by(slack_id: user_id)
         if user.bake_cookies(recipe)
@@ -279,7 +277,7 @@ class Commands
           response
         end
       else
-        "\"#{cookie_type}\" is not a recognized cookie type. Use `/cookies-bakeable-list` to see available types."
+        "\":#{cookie_emoji}:\" is not a recognized cookie emoji. Use `/cookies-bakeable-list` to see available types."
       end
     else
       "Enter a cookie type after `/cookies-bake` to make cookies. Use `/cookies-bakeable-list` to see available types."
