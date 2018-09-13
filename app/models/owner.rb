@@ -3,8 +3,6 @@ class Owner < ActiveRecord::Base
     has_many :owned_ingredients
     has_many :owned_cookies
 
-
-
     #receive_giveable_ingredient
     def receive_giveable_ingredient(ingredient)
         owned_ingredient = self.owned_ingredients.find_or_create_by(ingredient_id: ingredient.id)
@@ -65,6 +63,16 @@ class Owner < ActiveRecord::Base
             end
         end
         additional_ingredient_hash
+    end
+
+    #list cookie you are closest to making
+    def list_closest_cookable_cookie
+        total_needed_ingredients = {}
+        CookieRecipe.all.eachirb do |cookie_recipe|
+            total_needed_ingredients[cookie_recipe] = self.remaining_needed_ingredients_for(cookie_recipe).values.reduce(:+)
+        end
+
+        total_needed_ingredients.key(total_needed_ingredients.values.max)
     end
 
     #bake_cookies(cookie_type)
