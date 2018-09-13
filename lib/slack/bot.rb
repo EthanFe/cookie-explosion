@@ -14,18 +14,10 @@ class SlackBot
 
   def self.startup
     self.add_all_users
-    self.give_starting_ingredients_to_all_users
   end
 
-  def self.give_starting_ingredients_to_all_users
+  def self.give_ingredients_to_all_users(ingredient, count)
     Owner.all.each do |member|
-      self.give_starting_ingredients(member)
-    end
-  end
-
-  def self.give_starting_ingredients(member)
-    @@starting_ingredients.each do |ingredient, count|
-      # if owner.receive_giveable_ingredient had a count argument this could be simplified
       count.times do 
         member.receive_giveable_ingredient(ingredient)
       end
@@ -64,6 +56,12 @@ class SlackBot
   def self.sendable_ingredient_emoji
     @@sendable_ingredient_emoji
   end
+
+  def self.send_ingredient(sending_user, targeted_user, sendable_ingredient)
+    sending_user.give_ingredient_to(targeted_user, Ingredient.find_by(emoji: sendable_ingredient))
+    Events.send_message(sending_user.slack_id, "You gave a :#{sendable_ingredient}: to #{SlackBot.get_name_of_user(targeted_user)}!")
+    Events.send_message(targeted_user.slack_id, "#{SlackBot.get_name_of_user(sending_user)}: gave you a :#{sendable_ingredient}:!")
+  end
 end
 
 # This class contains all of the webserver logic for processing incoming requests from Slack.
@@ -74,20 +72,13 @@ class SlackAPI < Sinatra::Base
     if request.content_type == "application/x-www-form-urlencoded"
       puts "URL ENCODED DATA"
       request_data = Events.parse_url_encoded_data(request.body.read)
-      user_id = request_data["user_id"]
-      text = request_data["text"]
-      case request_data["command"]
-      when "%2Fingredients"
-        content_type :json
-        return Commands.list_ingredients(user_id)
-      when "%2Flist-bakeable-cookies"
-        content_type :json
-        return Commands.list_bakeable_cookies(user_id)
-      when "%2Fbake_cookies"
-        return Commands.bake_cookies(user_id, text)
+      content_type :json
+      response = Events.slash_command_received(request_data)
+      if response
+        return response
+      else
+        status 200
       end
-
-      status 200
     elsif request.content_type == "application/json"
       # Extract the Event payload from the request and parse the JSON
       request_data = JSON.parse(request.body.read)
@@ -115,27 +106,7 @@ class SlackAPI < Sinatra::Base
           # Event payloads as needed.
           case event_data['type']
           when 'message'
-            user_id = event_data["user"]
-            text = event_data["text"]
-            channel_id = event_data["channel"]
-            puts "message text: #{text}"
-            if text
-              if text[0..1] == "<@"
-                targeted_slack_id = text[2..10]
-                sending_user = Owner.find_by(slack_id: user_id)
-                targeted_user = Owner.find_by(slack_id: targeted_slack_id)
-                if targeted_user
-                  SlackBot.sendable_ingredient_emoji.each do |sendable_ingredient|
-                    if text.include?(":#{sendable_ingredient}:")
-                      sending_user.give_ingredient_to(targeted_user, Ingredient.find_by(emoji: sendable_ingredient))
-                      Events.send_message(channel_id, "#{SlackBot.get_name_of_user(sending_user)} gave a :#{sendable_ingredient}: to #{SlackBot.get_name_of_user(targeted_user)}!")
-                    end
-                  end
-                end
-              end
-            end
-            # Events.send_echo_to_user(user_id, text)
-            # Events.send_message(channel_id, text) unless event_data["bot_id"] == "BCQPJU5ML"
+            Events.message_sent(event_data)
           when 'team_join'
             # Event handler for when a user joins a team
             Events.user_join(team_id, event_data)
@@ -152,24 +123,12 @@ class Events
   # A new user joins the team
   def self.user_join(team_id, event_data)
     user_id = event_data['user']['id']
-    binding.pry
   end
 
   def self.send_message(channel_id, text)
     token = "xoxa-2-431241021636-431454794578-431243756420-5e277d6052f2e25e25d7b59c9bbcf9d4"
     request_url = "https://slack.com/api/chat.postMessage?token=#{token}&channel=#{channel_id}&text=#{text}&pretty=1"
     RestClient.get(request_url)
-  end
-
-  def self.send_echo_to_user(user_id, text)
-    send_message_to_user(user_id, "You said: #{text}")
-  end
-
-  def self.send_message_to_user(user_id, text)
-    send_message(user_id, text)
-  end
-
-  def self.send_ephemeral_message_to_user(user_id, text)
   end
 
   def self.parse_url_encoded_data(string)
@@ -180,15 +139,57 @@ class Events
       property.split("=") 
     end]
   end
+
+  def self.message_sent(event_data)
+    user_id = event_data["user"]
+    text = event_data["text"]
+    channel_id = event_data["channel"]
+    puts "message text: #{text}"
+    if text
+      if text[0..1] == "<@"
+        targeted_slack_id = text[2..10]
+        sending_user = Owner.find_by(slack_id: user_id)
+        targeted_user = Owner.find_by(slack_id: targeted_slack_id)
+        if targeted_user
+          SlackBot.sendable_ingredient_emoji.each do |sendable_ingredient|
+            if text.include?(":#{sendable_ingredient}:")
+              SlackBot.send_ingredient(sending_user, targeted_user, sendable_ingredient)
+            end
+          end
+        end
+      end
+    end
+  end
+
+  def self.slash_command_received(request_data)
+    user_id = request_data["user_id"]
+    text = request_data["text"]
+    case request_data["command"]
+    when "%2Fcookie-inventory"
+      return Commands.cookie_inventory(user_id)
+    when "%2Flist-bakeable-cookies"
+      return Commands.list_bakeable_cookies(user_id)
+    when "%2Fbake-cookies"
+      return Commands.bake_cookies(user_id, text)
+    when "%2F%21distribute-ingredients"
+      if user_id == "UCRK08DGA" || user_id == "UCNMEMR08"
+        return Commands.distribute_ingredients(text)
+      end
+    end
+  end
 end
 
 class Commands
-  def self.list_ingredients(user_id)
-    ingredients = Owner.find_by(slack_id: user_id).list_all_ingredients
+  def self.cookie_inventory(user_id)
+    #this function is so giant and ugly and inconsistent aaaaah
+    owner = Owner.find_by(slack_id: user_id)
+    ingredients = owner.list_all_ingredients
+    giveable_cookies = owner.list_all_giveable_cookies
+    received_cookies = owner.list_all_received_cookies
 
     response =
     {
-      :text => "Your Ingredients:\n",
+      :text => "Your Ingredients:\n\n",
       :attachments => []
     }
 
@@ -197,19 +198,41 @@ class Commands
       response[:text] << "You have #{ingredient_info[:giveable]} giveable #{ingredient.name} :#{ingredient.emoji}:, and #{ingredient_info[:received]} received from others!\n"
     end
 
+    response[:text] << "\nCookies you've baked (can be sent to others):\n"
+    giveable_cookies.each do |cookie_id, count|
+      cookie = OwnedCookie.find(cookie_id)
+      response[:text] << (":#{cookie.cookie_recipe.emoji}:" * count) + "\n"
+    end
+    response[:text] << "\nCookies others have sent to you:\n"
+    received_cookies.each do |cookie_id, count|
+      cookie = OwnedCookie.find(cookie_id)
+      response[:text] << (":#{cookie.cookie_recipe.emoji}:" * count) + "\n"
+    end
+
     response.to_json
   end
 
   def self.list_bakeable_cookies(user_id)
     response =
     {
-      :text => "Cookies you can make:",
+      :text => "",
       :attachments => []
     }
 
-    recipes = Owner.find_by(slack_id: user_id).list_cookie_recipes_you_can_bake
-    recipes.each do |recipe|
-      response[:attachments] << {"text" => "#{recipe.name} cookies!"}
+    user = Owner.find_by(slack_id: user_id)
+    recipes = user.list_cookie_recipes_you_can_bake
+    if recipes.length > 0
+      response[:text] << "Cookies you can make:"
+      recipes.each do |recipe|
+        response[:attachments] << {"text" => "#{recipe.name} cookies!"}
+      end
+    else
+      closest_cookie = user.list_closest_cookable_cookie
+      response[:text] << "You don't have enough ingredients to make a cookie yet. The cookie you're closest to is a :#{closest_cookie.emoji}:, which needs:\n"
+
+      user.remaining_needed_ingredients_for(closest_cookie).each do |ingredient_id, count|
+        response[:attachments] << {"text" => ":#{Ingredient.find(ingredient_id).emoji}:" * count}
+      end
     end
 
     response.to_json
@@ -226,15 +249,28 @@ class Commands
         if user.bake_cookies(recipe)
           "Baked a #{recipe.name} Cookie! :#{recipe.emoji}: :tada:"
         else
-          #change this to say/display what ingredients are still needed
-          "You don't have enough ingredients to make a #{recipe.name} Cookie. Use `/list_bakeable_cookies` to see available types."
+          response = "You don't have enough ingredients to make a #{recipe.name} Cookie. You still need:\n"
+          needed_ingredients = user.remaining_needed_ingredients_for(recipe)
+          needed_ingredients.each do |ingredient_id, count|
+            response << ":#{Ingredient.find(ingredient_id).emoji}:" * count + "\n"
+          end
+          response
         end
       else
-        "\"#{cookie_type}\" is not a recognized cookie type. Use `/list_bakeable_cookies` to see available types."
+        "\"#{cookie_type}\" is not a recognized cookie type. Use `/list-bakeable-cookies` to see available types."
       end
     else
-      "Enter a cookie type after `/bake_cookies` to make cookies. Use `/list_bakeable_cookies` to see available types."
+      "Enter a cookie type after `/bake-cookies` to make cookies. Use `/list-bakeable-cookies` to see available types."
     end
+  end
+
+  def self.distribute_ingredients(text)
+    ingredient_type, count = text.split("+")
+    ingredient = Ingredient.find do |ingredient|
+      ingredient.name.downcase == ingredient_type.downcase
+    end
+    SlackBot.give_ingredients_to_all_users(ingredient, count.to_i)
+    "(ADMIN) Sent all users #{count} #{ingredient.name}"
   end
 end
 
