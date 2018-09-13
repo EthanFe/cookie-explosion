@@ -227,13 +227,13 @@ class Commands
           "Baked a #{recipe.name} Cookie! :#{recipe.emoji}: :tada:"
         else
           #change this to say/display what ingredients are still needed
-          "You don't have enough ingredients to make a #{recipe.name} Cookie. Use /list_bakeable_cookies to see available types."
+          "You don't have enough ingredients to make a #{recipe.name} Cookie. Use `/list_bakeable_cookies` to see available types."
         end
       else
-        "\"#{cookie_type}\" is not a recognized cookie type. Use /list_bakeable_cookies to see available types."
+        "\"#{cookie_type}\" is not a recognized cookie type. Use `/list_bakeable_cookies` to see available types."
       end
     else
-      "Enter a cookie type after /bake_cookies to make cookies. Use /list_bakeable_cookies to see available types."
+      "Enter a cookie type after `/bake_cookies` to make cookies. Use `/list_bakeable_cookies` to see available types."
     end
   end
 end
