@@ -60,6 +60,8 @@ class Owner < ActiveRecord::Base
                 if count >= self.list_all_received_ingredients[ingredient_id]
                     additional_ingredient_hash[ingredient_id] = count - self.list_all_received_ingredients[ingredient_id]
                 end
+            else
+                additional_ingredient_hash[ingredient_id] = count
             end
         end
         additional_ingredient_hash

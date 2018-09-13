@@ -123,24 +123,12 @@ class Events
   # A new user joins the team
   def self.user_join(team_id, event_data)
     user_id = event_data['user']['id']
-    binding.pry
   end
 
   def self.send_message(channel_id, text)
     token = "xoxa-2-431241021636-431454794578-431243756420-5e277d6052f2e25e25d7b59c9bbcf9d4"
     request_url = "https://slack.com/api/chat.postMessage?token=#{token}&channel=#{channel_id}&text=#{text}&pretty=1"
     RestClient.get(request_url)
-  end
-
-  def self.send_echo_to_user(user_id, text)
-    send_message_to_user(user_id, "You said: #{text}")
-  end
-
-  def self.send_message_to_user(user_id, text)
-    send_message(user_id, text)
-  end
-
-  def self.send_ephemeral_message_to_user(user_id, text)
   end
 
   def self.parse_url_encoded_data(string)
@@ -210,7 +198,7 @@ class Commands
       response[:text] << "You have #{ingredient_info[:giveable]} giveable #{ingredient.name} :#{ingredient.emoji}:, and #{ingredient_info[:received]} received from others!\n"
     end
 
-    response[:text] << "\nCookies you've baked:\n"
+    response[:text] << "\nCookies you've baked (can be sent to others):\n"
     giveable_cookies.each do |cookie_id, count|
       cookie = OwnedCookie.find(cookie_id)
       response[:text] << (":#{cookie.cookie_recipe.emoji}:" * count) + "\n"
@@ -250,8 +238,12 @@ class Commands
         if user.bake_cookies(recipe)
           "Baked a #{recipe.name} Cookie! :#{recipe.emoji}: :tada:"
         else
-          #change this to say/display what ingredients are still needed
-          "You don't have enough ingredients to make a #{recipe.name} Cookie. Use `/list-bakeable-cookies` to see available types."
+          response = "You don't have enough ingredients to make a #{recipe.name} Cookie. You still need:\n"
+          needed_ingredients = user.remaining_needed_ingredients_for(recipe)
+          needed_ingredients.each do |ingredient_id, count|
+            response << ":#{Ingredient.find(ingredient_id).emoji}:" * count + "\n"
+          end
+          response
         end
       else
         "\"#{cookie_type}\" is not a recognized cookie type. Use `/list-bakeable-cookies` to see available types."
