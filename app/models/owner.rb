@@ -104,6 +104,32 @@ class Owner < ActiveRecord::Base
         owned_cookie.update(giveable_count: owned_cookie.giveable_count + 1)
     end
 
+     #give giveable_cookie_to(receiver)
+     def give_cookie_to(receiver, cookie_type)
+        #check if owner has cookie
+        owned_cookie = self.owned_cookies.find_by(cookie_recipe_id: cookie_type.id)
+
+        #if giver has enough to give
+        if owned_cookie != nil && owned_cookie.giveable_count > 0
+            #decrement giveable ingredient count
+            owned_cookie.update(giveable_count: owned_cookie.giveable_count - 1)
+            
+            #call receive_ingredient_from(self)
+            receiver.receive_cookie_from(self, cookie_type)
+        end
+    end
+
+    #receive_cookie_from(giver)
+    def receive_cookie_from(giver, cookie_type)
+        owned_cookie = self.owned_cookies.find_or_create_by(cookie_recipe_id: cookie_type.id)
+
+        if owned_cookie.received_count == nil #if just created
+            owned_cookie.update(received_count: 0, giveable_count: 0)
+        end
+
+        owned_cookie.update(received_count: owned_cookie.received_count + 1)
+    end
+
     #can_bake?(cookie_type)
     def can_bake?(cookie_type)
         #get array of recipe ingredients that self has adequate count of
