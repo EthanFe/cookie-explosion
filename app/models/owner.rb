@@ -25,6 +25,7 @@ class Owner < ActiveRecord::Base
         #check if owner has ingredient
         owned_ingredient = self.owned_ingredients.find_by(ingredient_id: ingredient.id)
 
+        #if giver has enough to give
         if owned_ingredient != nil && owned_ingredient.giveable_count > 0
             #decrement giveable ingredient count
             owned_ingredient.update(giveable_count: owned_ingredient.giveable_count - 1)
@@ -32,7 +33,6 @@ class Owner < ActiveRecord::Base
             #call receive_ingredient_from(self)
             receiver.receive_ingredient_from(self, ingredient)
         end
-
     end
 
     #receive_ingredient_from(giver)
@@ -74,7 +74,8 @@ class Owner < ActiveRecord::Base
     #bake_cookies(cookie_type)
     def bake_cookies(cookie_type)
         #check can_bake?(cookie_type)
-        if can_bake?(cookie_type)
+        can_bake = can_bake?(cookie_type)
+        if can_bake
             #for each recipe ingredients of cookie_type
             cookie_type.recipe_ingredients.each do |recipe_ingredient|
                 decrement_count = recipe_ingredient.count
@@ -86,8 +87,8 @@ class Owner < ActiveRecord::Base
 
             #receive giveable cookie	
             receive_giveable_cookie(cookie_type)
-            
         end
+        can_bake
     end
 
     #receive giveable cookie

@@ -216,6 +216,25 @@ class Commands
   end
 
   def self.bake_cookies(user_id, cookie_type)
+    if cookie_type
+      cookie_type = cookie_type.gsub("+", " ")
+      recipe = CookieRecipe.find do |cookie_recipe|
+        cookie_type.downcase == cookie_recipe.name.downcase
+      end
+      if recipe
+        user = Owner.find_by(slack_id: user_id)
+        if user.bake_cookies(recipe)
+          "Baked a #{recipe.name} Cookie! :#{recipe.emoji}: :tada:"
+        else
+          #change this to say/display what ingredients are still needed
+          "You don't have enough ingredients to make a #{recipe.name} Cookie. Use /list_bakeable_cookies to see available types."
+        end
+      else
+        "\"#{cookie_type}\" is not a recognized cookie type. Use /list_bakeable_cookies to see available types."
+      end
+    else
+      "Enter a cookie type after /bake_cookies to make cookies. Use /list_bakeable_cookies to see available types."
+    end
   end
 end
 
