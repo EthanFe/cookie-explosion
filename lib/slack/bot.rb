@@ -1,6 +1,7 @@
 class SlackBot
   #these are both pretty dumbo but w/e
-  @@token = "xoxa-2-431241021636-431454794578-431243756420-5e277d6052f2e25e25d7b59c9bbcf9d4"
+  # Cake workspace token @@token = "xoxa-2-431241021636-431454794578-431243756420-5e277d6052f2e25e25d7b59c9bbcf9d4"
+  @@token = "xoxa-2-2727337933-434878054212-435246898165-54f723d7878447f0e4ba575b46b1749e"
   @@starting_ingredients = {Ingredient.find_by(name: "Butter") => 1,
                             Ingredient.find_by(name: "Sugar") => 1,
                             Ingredient.find_by(name: "Egg") => 1,
@@ -26,24 +27,27 @@ class SlackBot
   def self.add_all_users
     users = self.get_user_list
     if users
-      users.each do |member|
-        self.add_user_if_new(member) unless self.user_is_a_bot(member)
+      users.each do |user_id|
+        self.add_user_if_new(user_id) unless self.user_is_a_bot(user_id)
       end
     end
   end
 
   def self.get_user_list
-    request_url = "https://slack.com/api/users.list?token=#{@@token}&pretty=1"
+    channel_id = "CC7VBU8UW"
+    # request_url = "https://slack.com/api/users.list?token=#{@@token}&pretty=1"
+    request_url = "https://slack.com/api/channels.info?token=#{@@token}&channel=#{channel_id}&pretty=1"
     response = JSON.parse(RestClient.get(request_url))
-    response["ok"] ? response["members"] : false
+    response["ok"] ? response["channel"]["members"] : false
   end
 
-  def self.user_is_a_bot(member)
-    member["id"] == "USLACKBOT" || member["profile"]["bot_id"]
+  def self.user_is_a_bot(user_id)
+    false # bots are real people too
+    # member == "USLACKBOT" || member["profile"]["bot_id"]
   end
 
-  def self.add_user_if_new(member)
-    Owner.find_or_create_by(slack_id: member["id"])
+  def self.add_user_if_new(user_id)
+    Owner.find_or_create_by(slack_id: user_id)
   end
 
   def self.get_name_of_user(user)
@@ -138,8 +142,7 @@ class Events
   end
 
   def self.send_message(channel_id, text)
-    token = "xoxa-2-431241021636-431454794578-431243756420-5e277d6052f2e25e25d7b59c9bbcf9d4"
-    request_url = "https://slack.com/api/chat.postMessage?token=#{token}&channel=#{channel_id}&text=#{text}&pretty=1"
+    request_url = "https://slack.com/api/chat.postMessage?token=#{@@token}&channel=#{channel_id}&text=#{text}&pretty=1"
     RestClient.get(request_url)
   end
 
@@ -194,7 +197,8 @@ class Events
     when "%2Fcookies-bake"
       return Commands.bake_cookies(user_id, text)
     when "%2F%21distribute-ingredients"
-      if user_id == "UCRK08DGA" || user_id == "UCNMEMR08"
+      # if user_id == "UCRK08DGA" || user_id == "UCNMEMR08" # test channel ids
+      if user_id == "UC95P2WDU" || user_id == "UCEJGLQSK" # flatiron channel ids
         return Commands.distribute_ingredients(channel_id, text)
       end
     end
