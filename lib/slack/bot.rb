@@ -1,7 +1,7 @@
 class SlackBot
   #these are both pretty dumbo but w/e
   # Cake workspace token @@token = "xoxa-2-431241021636-431454794578-431243756420-5e277d6052f2e25e25d7b59c9bbcf9d4"
-  @@token = "xoxa-2-2727337933-434878054212-435246898165-54f723d7878447f0e4ba575b46b1749e"
+  @@token = "xoxa-2-2727337933-435220560689-437153128614-8809645628b15162e1cf0c25bc33cecc"
   @@starting_ingredients = {Ingredient.find_by(name: "Butter") => 1,
                             Ingredient.find_by(name: "Sugar") => 1,
                             Ingredient.find_by(name: "Egg") => 1,
@@ -62,6 +62,10 @@ class SlackBot
 
   def self.sendable_cookie_emoji
     @@sendable_cookie_emoji
+  end
+
+  def self.token
+    @@token
   end
 
   def self.send_sent_item_messages(sender, recipient, object)
@@ -142,8 +146,10 @@ class Events
   end
 
   def self.send_message(channel_id, text)
-    request_url = "https://slack.com/api/chat.postMessage?token=#{@@token}&channel=#{channel_id}&text=#{text}&pretty=1"
-    RestClient.get(request_url)
+    request_url = "https://slack.com/api/chat.postMessage?token=#{SlackBot.token}&channel=#{channel_id}&text=#{text}&pretty=1"
+    response = RestClient.get(request_url)
+    puts "***************"
+    puts response
   end
 
   def self.parse_url_encoded_data(string)
