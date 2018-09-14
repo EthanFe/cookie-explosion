@@ -1,16 +1,16 @@
 class SlackBot
   #these are both pretty dumbo but w/e
-  @@token = "xoxa-2-431241021636-431454794578-431243756420-5e277d6052f2e25e25d7b59c9bbcf9d4"
+  # Cake workspace token @@token = "xoxa-2-431241021636-431454794578-431243756420-5e277d6052f2e25e25d7b59c9bbcf9d4"
+  @@token = "xoxa-2-2727337933-435220560689-437153128614-8809645628b15162e1cf0c25bc33cecc"
   @@starting_ingredients = {Ingredient.find_by(name: "Butter") => 1,
                             Ingredient.find_by(name: "Sugar") => 1,
                             Ingredient.find_by(name: "Egg") => 1,
                             Ingredient.find_by(name: "Flour") => 1,
                             Ingredient.find_by(name: "Chocolate") => 1,
-                            Ingredient.find_by(name: "Peanut Butter") => 1
+                            Ingredient.find_by(name: "Peanutbutter") => 1
                           }
-  @@sendable_ingredient_emoji = Ingredient.all.map do |ingredient|
-    ingredient.emoji
-  end
+  @@sendable_ingredient_emoji = Ingredient.all.map { |ingredient| ingredient.emoji }
+  @@sendable_cookie_emoji = CookieRecipe.all.map { |cookie| cookie.emoji }
 
   def self.startup
     self.add_all_users
@@ -27,24 +27,27 @@ class SlackBot
   def self.add_all_users
     users = self.get_user_list
     if users
-      users.each do |member|
-        self.add_user_if_new(member) unless self.user_is_a_bot(member)
+      users.each do |user_id|
+        self.add_user_if_new(user_id) unless self.user_is_a_bot(user_id)
       end
     end
   end
 
   def self.get_user_list
-    request_url = "https://slack.com/api/users.list?token=#{@@token}&pretty=1"
+    channel_id = "CC7VBU8UW"
+    # request_url = "https://slack.com/api/users.list?token=#{@@token}&pretty=1"
+    request_url = "https://slack.com/api/channels.info?token=#{@@token}&channel=#{channel_id}&pretty=1"
     response = JSON.parse(RestClient.get(request_url))
-    response["ok"] ? response["members"] : false
+    response["ok"] ? response["channel"]["members"] : false
   end
 
-  def self.user_is_a_bot(member)
-    member["id"] == "USLACKBOT" || member["profile"]["bot_id"]
+  def self.user_is_a_bot(user_id)
+    false # bots are real people too
+    # member == "USLACKBOT" || member["profile"]["bot_id"]
   end
 
-  def self.add_user_if_new(member)
-    Owner.find_or_create_by(slack_id: member["id"])
+  def self.add_user_if_new(user_id)
+    Owner.find_or_create_by(slack_id: user_id)
   end
 
   def self.get_name_of_user(user)
@@ -57,10 +60,27 @@ class SlackBot
     @@sendable_ingredient_emoji
   end
 
-  def self.send_ingredient(sending_user, targeted_user, sendable_ingredient)
-    sending_user.give_ingredient_to(targeted_user, Ingredient.find_by(emoji: sendable_ingredient))
-    Events.send_message(sending_user.slack_id, "You gave a :#{sendable_ingredient}: to #{SlackBot.get_name_of_user(targeted_user)}!")
-    Events.send_message(targeted_user.slack_id, "#{SlackBot.get_name_of_user(sending_user)}: gave you a :#{sendable_ingredient}:!")
+  def self.sendable_cookie_emoji
+    @@sendable_cookie_emoji
+  end
+
+  def self.token
+    @@token
+  end
+
+  def self.send_sent_item_messages(sender, recipient, object)
+    Events.send_message(sender.slack_id, "You gave a :#{object}: to #{SlackBot.get_name_of_user(recipient)}!")
+    Events.send_message(recipient.slack_id, "#{SlackBot.get_name_of_user(sender)}: gave you a :#{object}:!")
+  end
+
+  def self.send_ingredient(sender, recipient, item)
+    self.send_sent_item_messages(sender, recipient, item)
+    sender.give_ingredient_to(recipient, Ingredient.find_by(emoji: item))
+  end
+
+  def self.send_cookie(sender, recipient, item)
+    self.send_sent_item_messages(sender, recipient, item)
+    sender.give_cookie_to(recipient, CookieRecipe.find_by(emoji: item))
   end
 end
 
@@ -126,9 +146,10 @@ class Events
   end
 
   def self.send_message(channel_id, text)
-    token = "xoxa-2-431241021636-431454794578-431243756420-5e277d6052f2e25e25d7b59c9bbcf9d4"
-    request_url = "https://slack.com/api/chat.postMessage?token=#{token}&channel=#{channel_id}&text=#{text}&pretty=1"
-    RestClient.get(request_url)
+    request_url = "https://slack.com/api/chat.postMessage?token=#{SlackBot.token}&channel=#{channel_id}&text=#{text}&pretty=1"
+    response = RestClient.get(request_url)
+    puts "***************"
+    puts response
   end
 
   def self.parse_url_encoded_data(string)
@@ -151,10 +172,19 @@ class Events
         sending_user = Owner.find_by(slack_id: user_id)
         targeted_user = Owner.find_by(slack_id: targeted_slack_id)
         if targeted_user
-          SlackBot.sendable_ingredient_emoji.each do |sendable_ingredient|
-            if text.include?(":#{sendable_ingredient}:")
-              SlackBot.send_ingredient(sending_user, targeted_user, sendable_ingredient)
+          if targeted_user != sending_user
+            SlackBot.sendable_ingredient_emoji.each do |sendable_ingredient|
+              if text.include?(":#{sendable_ingredient}:")
+                SlackBot.send_ingredient(sending_user, targeted_user, sendable_ingredient)
+              end
             end
+            SlackBot.sendable_cookie_emoji.each do |sendable_cookie|
+              if text.include?(":#{sendable_cookie}:")
+                SlackBot.send_cookie(sending_user, targeted_user, sendable_cookie)
+              end
+            end
+          else
+            Events.send_message(sending_user.slack_id, "You can't send ingredients to yourself!")
           end
         end
       end
@@ -162,18 +192,20 @@ class Events
   end
 
   def self.slash_command_received(request_data)
+    channel_id = request_data["channel_id"]
     user_id = request_data["user_id"]
     text = request_data["text"]
     case request_data["command"]
     when "%2Fcookie-inventory"
       return Commands.cookie_inventory(user_id)
-    when "%2Flist-bakeable-cookies"
+    when "%2Fcookies-bakeable-list"
       return Commands.list_bakeable_cookies(user_id)
-    when "%2Fbake-cookies"
+    when "%2Fcookies-bake"
       return Commands.bake_cookies(user_id, text)
     when "%2F%21distribute-ingredients"
-      if user_id == "UCRK08DGA" || user_id == "UCNMEMR08"
-        return Commands.distribute_ingredients(text)
+      # if user_id == "UCRK08DGA" || user_id == "UCNMEMR08" # test channel ids
+      if user_id == "UC95P2WDU" || user_id == "UCEJGLQSK" # flatiron channel ids
+        return Commands.distribute_ingredients(channel_id, text)
       end
     end
   end
@@ -224,7 +256,7 @@ class Commands
     if recipes.length > 0
       response[:text] << "Cookies you can make:"
       recipes.each do |recipe|
-        response[:attachments] << {"text" => "#{recipe.name} cookies!"}
+        response[:attachments] << {"text" => ":#{recipe.emoji}:"}
       end
     else
       closest_cookie = user.list_closest_cookable_cookie
@@ -238,12 +270,10 @@ class Commands
     response.to_json
   end
 
-  def self.bake_cookies(user_id, cookie_type)
-    if cookie_type
-      cookie_type = cookie_type.gsub("+", " ")
-      recipe = CookieRecipe.find do |cookie_recipe|
-        cookie_type.downcase == cookie_recipe.name.downcase
-      end
+  def self.bake_cookies(user_id, cookie_emoji)
+    if cookie_emoji
+      cookie_emoji = cookie_emoji.gsub("%3A", "")
+      recipe = CookieRecipe.find_by(emoji: cookie_emoji)
       if recipe
         user = Owner.find_by(slack_id: user_id)
         if user.bake_cookies(recipe)
@@ -257,19 +287,20 @@ class Commands
           response
         end
       else
-        "\"#{cookie_type}\" is not a recognized cookie type. Use `/list-bakeable-cookies` to see available types."
+        "\":#{cookie_emoji}:\" is not a recognized cookie emoji. Use `/cookies-bakeable-list` to see available types."
       end
     else
-      "Enter a cookie type after `/bake-cookies` to make cookies. Use `/list-bakeable-cookies` to see available types."
+      "Enter a cookie type after `/cookies-bake` to make cookies. Use `/cookies-bakeable-list` to see available types."
     end
   end
 
-  def self.distribute_ingredients(text)
+  def self.distribute_ingredients(channel_id, text)
     ingredient_type, count = text.split("+")
     ingredient = Ingredient.find do |ingredient|
       ingredient.name.downcase == ingredient_type.downcase
     end
     SlackBot.give_ingredients_to_all_users(ingredient, count.to_i)
+    Events.send_message(channel_id, "Everyone has received #{count} more :#{ingredient.emoji}: to send to others!")
     "(ADMIN) Sent all users #{count} #{ingredient.name}"
   end
 end
