@@ -167,27 +167,32 @@ class Events
     channel_id = event_data["channel"]
     puts "message text: #{text}"
     if text
-      if text[0..1] == "<@"
-        targeted_slack_id = text[2..10]
+      targeted_user = self.get_targeted_user(text)
+      if targeted_user
         sending_user = Owner.find_by(slack_id: user_id)
-        targeted_user = Owner.find_by(slack_id: targeted_slack_id)
-        if targeted_user
-          if targeted_user != sending_user
-            SlackBot.sendable_ingredient_emoji.each do |sendable_ingredient|
-              if text.include?(":#{sendable_ingredient}:")
-                SlackBot.send_ingredient(sending_user, targeted_user, sendable_ingredient)
-              end
+        if targeted_user != sending_user
+          SlackBot.sendable_ingredient_emoji.each do |sendable_ingredient|
+            if text.include?(":#{sendable_ingredient}:")
+              SlackBot.send_ingredient(sending_user, targeted_user, sendable_ingredient)
             end
-            SlackBot.sendable_cookie_emoji.each do |sendable_cookie|
-              if text.include?(":#{sendable_cookie}:")
-                SlackBot.send_cookie(sending_user, targeted_user, sendable_cookie)
-              end
-            end
-          else
-            Events.send_message(sending_user.slack_id, "You can't send ingredients to yourself!")
           end
+          SlackBot.sendable_cookie_emoji.each do |sendable_cookie|
+            if text.include?(":#{sendable_cookie}:")
+              SlackBot.send_cookie(sending_user, targeted_user, sendable_cookie)
+            end
+          end
+        else
+          Events.send_message(sending_user.slack_id, "You can't send ingredients to yourself!")
         end
       end
+    end
+  end
+
+  def self.get_targeted_user(message)
+    username_location = message.index("<@")
+    if username_location
+      user_id = message[username_location + 2..username_location + 10]
+      Owner.find_by(slack_id: user_id)
     end
   end
 
