@@ -1,0 +1,17 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  username: <%=  %>
+  password: <%=  %>
+  pool: 5
+  timeout: 5000
+  host: "localhost"
+development:
+  <<: *default
+  database: <%= "kloivier" %>
+test:
+  <<: *default
+  database: <%= "ownedcooky_test_db" %>
+production:
+  <<: *default
+  database: <%= "kloivier" %>

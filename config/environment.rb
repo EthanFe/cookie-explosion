@@ -1,8 +1,10 @@
 require 'bundler'
 Bundler.require
 
-ActiveRecord::Base.establish_connection(adapter: 'sqlite3', database: 'db/development.db')
-
+db_config = YAML.load_file('config/database.yml')
+ActiveRecord::Base.establish_connection(db_config['development'])
+# ActiveRecord::Base.establish_connection(adapter: 'postgresql', database: 'kloivier')
+# conn = PG.connect( dbname: 'sales' )
 require_rel '../app'
 require_rel '../lib'
 

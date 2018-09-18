@@ -2,7 +2,6 @@
 source "https://rubygems.org"
 
 gem "sinatra-activerecord"
-gem "sqlite3"
 gem "pry"
 gem "require_all"
 
@@ -17,3 +16,5 @@ gem "json", "~> 2.1"
 gem "sinatra", "~> 2.0"
 
 gem "slack-ruby-client", "~> 0.13.0"
+
+gem "pg", "~> 1.1"
